@@ -1,128 +1,104 @@
 //import the module that comtains Artist and TopStreamingArtists classes
-const artistModule = require('./artist.js');
+const Queue = require('./queue.js');
+const Playlist = require('./playlist.js');
+const SongHistoryList = require('./songHistoryList.js');
 // file system node module to be able to read files
 const fs = require('fs');
-
+const path = require('path');
+const readline = require('readline-sync');
 /*
     main method that starts the program and handles the input
     * @return {string[]}
  */
-const porcessConsoleInput = () => {
-    // check if any arguments were provided by user
-    const arg = process.argv.slice(2);
-    if(arg.length > 1) { // if more than one argument is provided, exit with an error
-        console.log("\x1b[31m", "Too many arguments provided", "\x1b[0m");
-        process.exit(1);
-    }
-    // go with default if no input file provided in arguments
-    const input = arg[0] || "../data/regional-global-daily-latest.csv";
-    // try to read the input into a file
-    // if there is an error, exit with appropriate message
-    try {
-        return fs.readFileSync(input, 'utf8').split('\n');
-    } catch(error) {
-        console.log("\x1b[31m", "Incorrect file path provided", "\x1b[0m");
-        process.exit(1);
-    }
-}
-
-/*
-    * @param {string[]} data
-    * @return {Object{}}
- */
-const createArtistPairs = (data) => {
-    let artists = {};
-    data.forEach((line) => { // read every line of input file
-        // we only need to process lines that start with a number,
-        // since these are the ones that holding the data we need
-        if("123456789".includes(line[0])){ 
-            // split the line by a "special CSV regex" from where we need
-            // only the 3rd argument, which is an artist name
-            let artist = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)[2];
-            // remove quotation marks from the names consisting of 2 or more words
-            if(artist.startsWith("\"")) {
-                artist = artist.substring(1, artist.length - 1);
-            }
-            // if there is an artist with the processed name already exists
-            // in the object, we update the appearances counter
-            // else we create a new key:value pair for them
-            artists[artist] = artists[artist] + 1 || 1;
-        }
+const porcessData = () => {
+    const files = [];
+    const dir = '../data/';
+    
+    fs.readdirSync(dir).forEach(filename => {
+        const filepath = path.resolve(dir, filename);
+        const weeklyQueue = new Queue(filepath);
+        weeklyQueue.createSortedTrackList()
+        files.push(weeklyQueue);
     });
-    // return an object holding artist name:appearances pairs
-    return artists;
+
+    return files;
 }
 
-/*
-    * @param {Object{}} artists
- */
-const sortByName = (artists) => {
-    Object.keys(artists).forEach((name) => {
-        //create a new Arist node
-        const artistNode = new artistModule.Artist(name, artists[name])
-        //call insertSorted method with newly created Artist node
-        topStreamingArtists.insertSorted(artistNode)
+const createPlaylist = (data) => {
+    let megaQueue = new Queue();
+    data.forEach((queue) => {
+        megaQueue = megaQueue.merge(megaQueue, queue)
     })
+    let playlist = new Playlist();
+    megaQueue.tracks.forEach((track) => {
+        playlist.add(track[0], track[1])
+    })
+
+    return playlist;
 }
 
-
-/*
-    print artist names and their appearances numbers in the format of a table
-    * @param {Object{}} artists
- */
-const consoleLogData = () => {
-    console.log("---------------------------------------------------------");
-    console.log("|            ARTIST            |     # OF APPEARANCES   |");
-    console.log("---------------------------------------------------------");
-    topStreamingArtists.forEach((artist) => {
-        console.log(`|${artist.name.padStart(26)}    |${artist.appNum.toString().padStart(13)}           |`);
-    });
-    console.log("---------------------------------------------------------");
-}
-
-/*
-    write artist names and their appearances numbers into a file
-    * @param {string} filePostfix
- */
-const writeToFile = (filePostfix) => {
-    let inputFileName;
-    // if an input file was provided, name the output file accordingly
-    // else go with default
-    if (process.argv.slice(2)[0]) {
-        console.log(process.argv.slice(2)[0])
-        const filePath = process.argv.slice(2)[0].split("/")
-        inputFileName = filePath[filePath.length - 1].split(".")[0]
+const cropTheLine = (line) => {
+    const width = 28;
+    if (line.length >= width) {
+        console.log('|        ', line.substring(0, width - 3), '...       |')
     } else {
-        inputFileName = "regional-global-daily-latest"
+        console.log(`|${line.padStart(width)}                 |`);
     }
-    // full file name including file path
-    const fileName = `../created-reports/report-${inputFileName}-${filePostfix}.txt`;
-    // open stream
-    const writeStream = fs.createWriteStream(fileName);
-    writeStream.write("---------------------------------------------------------\n");
-    writeStream.write("|            ARTIST            |     # OF APPEARANCES   |\n");
-    writeStream.write("---------------------------------------------------------\n");
-    topStreamingArtists.forEach((artist) => {
-        writeStream.write(`|${artist.name.padStart(26)}    |${artist.appNum.toString().padStart(13)}           |\n`);
-    });
-    writeStream.write("---------------------------------------------------------");
-    writeStream.on('finish', () => {
-        console.log("\x1b[32m", `All data was succesfully written to ${fileName}`, "\x1b[0m");
-    });
-    // close the stream
-    writeStream.end();
 }
 
-// create a new TopStreamingArtists linked list
-let topStreamingArtists = new artistModule.TopStreamingArtists
-// call the porcessConsoleInput method and handle the input data
-const data = porcessConsoleInput();
-// call the createArtistPairs method and process the input data
-// to keep only the data we need(artists names && appearances numbers)
-const artists = createArtistPairs(data);
-// sort artists by name
-sortByName(artists)
-// output sorted data to console(table format)
-consoleLogData();
-// write sorted data to file
-writeToFile("sortedByName");
+const drawPlayer = (artist, song) => {
+    console.clear()
+    console.log('-----------------------------------------------');
+    cropTheLine(artist)
+    cropTheLine(song)
+    console.log('|    <<               ||                >>    |');
+    console.log('-----------------------------------------------');
+
+}
+
+const playerInterface = (playlist, historyList) => {
+    const question = 
+    'Options: \n' +
+    'P: Show Playlist\n' +
+    'H: Show History List\n' +
+    '<: Previous | >: Next\n' +
+    'E: Exit(Not streamed songs and history will be written into files)\n' +
+    'What\'s the move? ';
+    let answer = '';
+    let currentlyPlaying = playlist.poll();
+    drawPlayer(currentlyPlaying.artistName, currentlyPlaying.songName)
+    while (answer !== 'E') {
+        answer = readline.question(question);
+        if (answer === '>' && !playlist.isEmpty()) {
+            historyList.push(currentlyPlaying);
+            currentlyPlaying = playlist.poll();
+            drawPlayer(currentlyPlaying.artistName, currentlyPlaying.songName)
+        } else if (answer === '<' && !historyList.isEmpty()) {
+            currentlyPlaying = historyList.pop();
+            drawPlayer(currentlyPlaying.artistName, currentlyPlaying.songName)
+        } else if (answer === 'H') {
+            drawPlayer(currentlyPlaying.artistName, currentlyPlaying.songName)
+            historyList.print();
+        } else if (answer === 'P') {
+            drawPlayer(currentlyPlaying.artistName, currentlyPlaying.songName)
+            playlist.print();
+        } else {
+            if (answer === '<') {
+                drawPlayer('        End of History List', '  >> is the only option now')
+            } else if (answer === '>') {
+                drawPlayer('        End of Playlist', '  << is the only option now')
+            } else {
+                drawPlayer(currentlyPlaying.artistName, currentlyPlaying.songName)
+            }
+        }
+    }
+
+    playlist.log();
+    historyList.log();
+}
+
+// call the porcessData method and handle the input data
+const data = porcessData();
+const playlist = createPlaylist(data);
+const historyList = new SongHistoryList();
+playerInterface(playlist, historyList);
