@@ -40,7 +40,7 @@ cd CISC3130-Lab4
 5. There is a package.json file provided for your convenience, so while inside `CISC3130-Lab4` run `npm i` or `npm install`
 6. After all the dependemcies are installed(there is only one), navigate to the `src` directory:
 ```zsh 
-cd CISC3130-Lab4/src/
+cd src
 ```  
 7. When you are inside the `src` directory, run the following command and you will be presented with the "music player" right in your command line: 
 ```zsh
