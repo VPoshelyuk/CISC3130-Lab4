@@ -46,5 +46,3 @@ cd CISC3130-Lab4/src/
 ```zsh
 node index.js
 ```  
-
-***NOTE: Filepath should be a path to the file saved locally, also no spaces in the Pathname are allowed.***
